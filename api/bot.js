@@ -569,12 +569,20 @@ async function rejectMayaDirective(chatId, id, messageId) {
   await sendMessage(chatId, '👍 Ок, изменение отменено.')
 }
 
+// ─── Deduplication (module-level, survives warm Lambda re-use) ───────────────
+// Prevents Telegram webhook retries from triggering the same task multiple times
+const seenMsgIds = new Set()
+setInterval(() => { if (seenMsgIds.size > 500) seenMsgIds.clear() }, 5 * 60 * 1000)
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(200).json({ status: 'TruePay Autonomous Bot 🤖', app: APP_URL })
   }
+
+  // Return 200 to Telegram IMMEDIATELY so it never retries
+  res.status(200).json({ ok: true })
 
   try {
     const body = req.body ?? {}
@@ -585,7 +593,6 @@ export default async function handler(req, res) {
       const chatId = cq.message?.chat?.id
       const data   = cq.data ?? ''
 
-      // Always answer the callback to remove the loading spinner
       fetch(`${TELEGRAM_API}/answerCallbackQuery`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -600,17 +607,24 @@ export default async function handler(req, res) {
         await rejectMayaDirective(chatId, id, cq.message?.message_id)
       }
 
-      return res.status(200).json({ ok: true })
+      return
     }
 
     const { message } = body
     const chatId = message?.chat?.id
-    if (!chatId) return res.status(200).json({ ok: true })
+    if (!chatId) return
+
+    // Deduplicate — ignore if we already processed this message_id
+    const msgId = message.message_id
+    if (msgId) {
+      if (seenMsgIds.has(msgId)) return
+      seenMsgIds.add(msgId)
+    }
 
     // Thread context — keeps all replies inside the same thread
     const ctx = {
       threadId:  message.message_thread_id ?? null,
-      replyToId: message.message_id ?? null,
+      replyToId: msgId ?? null,
     }
 
     const text  = message.text?.trim()
@@ -630,7 +644,7 @@ export default async function handler(req, res) {
         '• "Измени приветствие на главном экране"\n\n' +
         `🔗 ${APP_URL}`, ctx
       )
-      return res.status(200).json({ ok: true })
+      return
     }
 
     sendTyping(chatId, ctx)
@@ -642,17 +656,17 @@ export default async function handler(req, res) {
         userText = await transcribeVoice(voice.file_id)
         if (!userText) {
           await sendMessage(chatId, '🎙 Ничего не расслышал, попробуй ещё раз.', ctx)
-          return res.status(200).json({ ok: true })
+          return
         }
         await sendMessage(chatId, `🎙 ${userText}`, ctx)
         sendTyping(chatId, ctx)
       } catch (e) {
         await sendMessage(chatId, '🎙 Не удалось расшифровать голосовое.', ctx)
-        return res.status(200).json({ ok: true })
+        return
       }
     }
 
-    if (!userText) return res.status(200).json({ ok: true })
+    if (!userText) return
 
     // Route: code task or chat
     if (isCodeTask(userText)) {
@@ -661,10 +675,7 @@ export default async function handler(req, res) {
       const reply = await chatReply(chatId, userText)
       await sendMessage(chatId, reply, ctx)
     }
-
-    return res.status(200).json({ ok: true })
   } catch (err) {
     console.error('Handler error:', err)
-    return res.status(200).json({ ok: true })
   }
 }
