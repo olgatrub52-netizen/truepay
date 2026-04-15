@@ -149,46 +149,41 @@ export default async function handler(req, res) {
 
   const label = description ?? task
 
-  try {
-    // ── Диалог в Telegram ───────────────────────────────────────────────────
-    await say(`🤖 Майя: "${label}"`)
-    await say('⚙️ Читаю код...')
+  // Сразу отвечаем Майе — она не будет ждать и не таймаутится
+  res.status(200).json({ ok: true, status: 'processing', message: 'Задача принята, выполняю' })
 
-    const files = await readFiles(task)
+  // Вся работа в фоне после ответа
+  ;(async () => {
+    try {
+      await say(`🤖 Майя: "${label}"`)
+      await say('⚙️ Читаю код...')
 
-    await say(`🧠 Генерирую изменения: ${files.map(f => f.path.split('/').pop()).join(', ')}...`)
+      const files = await readFiles(task)
+      await say(`🧠 Генерирую изменения: ${files.map(f => f.path.split('/').pop()).join(', ')}...`)
 
-    const result = await generateChanges(task, files)
+      const result = await generateChanges(task, files)
 
-    // ── Коммит в GitHub ─────────────────────────────────────────────────────
-    let committed = 0
-    for (const file of result.files ?? []) {
-      const existing = await ghGet(file.path)
-      const ok = await ghPut(file.path, file.content, `maya: ${result.summary}`, existing?.sha)
-      if (ok) committed++
+      let committed = 0
+      for (const file of result.files ?? []) {
+        const existing = await ghGet(file.path)
+        const ok = await ghPut(file.path, file.content, `maya: ${result.summary}`, existing?.sha)
+        if (ok) committed++
+      }
+
+      if (committed === 0) throw new Error('Не удалось применить изменения в GitHub')
+
+      await say(`✅ Майя выполнила: ${result.summary}\n\n📝 Файлов изменено: ${committed}\n🚀 Деплой: ${APP_URL}`)
+
+      if (callbackUrl) {
+        fetch(callbackUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ok: true, summary: result.summary, filesChanged: committed }),
+        }).catch(() => {})
+      }
+    } catch (err) {
+      console.error('Maya bg error:', err)
+      await say(`❌ Ошибка: ${err.message}`)
     }
-
-    if (committed === 0) throw new Error('Не удалось применить изменения в GitHub')
-
-    // ── Отчёт в Telegram ────────────────────────────────────────────────────
-    await say(`✅ Майя выполнила: ${result.summary}\n\n📝 Файлов изменено: ${committed}\n🚀 Деплой: ${APP_URL}`)
-
-    const payload = { ok: true, summary: result.summary, filesChanged: committed, deployUrl: APP_URL }
-
-    // ── Обратный вызов Майе (если указан callbackUrl) ───────────────────────
-    if (callbackUrl) {
-      fetch(callbackUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      }).catch(() => {})
-    }
-
-    return res.status(200).json(payload)
-
-  } catch (err) {
-    console.error('Maya error:', err)
-    await say(`❌ *Ошибка выполнения директивы Майи:* ${err.message}`)
-    return res.status(500).json({ ok: false, error: err.message })
-  }
+  })()
 }
