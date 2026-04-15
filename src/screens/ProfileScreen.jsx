@@ -275,7 +275,7 @@ export default function ProfileScreen({
           <span className="text-[15px] font-medium text-red-400">Выйти из аккаунта</span>
         </button>
 
-        <p className="pb-2 text-center text-[11px] text-slate-700">
+        <p className="pb-2 text-center text-[11px] text-sky-500">
           TruePay v1.0.0-MVP · © 2026
         </p>
       </div>
