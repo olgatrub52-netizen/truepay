@@ -19,17 +19,18 @@ const GH_API      = 'https://api.github.com'
 const GH_OWNER    = process.env.GITHUB_OWNER
 const GH_REPO     = process.env.GITHUB_REPO
 const GH_TOKEN    = process.env.GITHUB_TOKEN
-const CHAT_ID     = process.env.SUPPORT_CHAT_ID
+const CHAT_ID     = process.env.SUPPORT_CHAT_ID ?? '805962344'
 const APP_URL     = 'https://truepay-kappa.vercel.app'
 
 // ─── Telegram ─────────────────────────────────────────────────────────────────
 
 async function say(text) {
-  await fetch(`${TG}/sendMessage`, {
+  const r = await fetch(`${TG}/sendMessage`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: CHAT_ID, text, parse_mode: 'Markdown' }),
+    body: JSON.stringify({ chat_id: CHAT_ID, text }),
   })
+  if (!r.ok) console.error('say() failed:', await r.text())
 }
 
 // ─── GitHub ───────────────────────────────────────────────────────────────────
