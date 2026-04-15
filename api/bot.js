@@ -66,19 +66,24 @@ const CODE_SYSTEM = `Ты — senior React разработчик проекта
 
 // ─── Telegram helpers ─────────────────────────────────────────────────────────
 
-async function sendMessage(chatId, text) {
+async function sendMessage(chatId, text, ctx = {}) {
+  const body = { chat_id: chatId, text }
+  if (ctx.threadId)  body.message_thread_id  = ctx.threadId
+  if (ctx.replyToId) body.reply_to_message_id = ctx.replyToId
   await fetch(`${TELEGRAM_API}/sendMessage`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify(body),
   })
 }
 
-async function sendTyping(chatId) {
+async function sendTyping(chatId, ctx = {}) {
+  const body = { chat_id: chatId, action: 'typing' }
+  if (ctx.threadId) body.message_thread_id = ctx.threadId
   fetch(`${TELEGRAM_API}/sendChatAction`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
+    body: JSON.stringify(body),
   })
 }
 
@@ -248,29 +253,28 @@ function isCodeTask(text) {
 
 // ─── Main code-change pipeline ───────────────────────────────────────────────
 
-async function handleCodeTask(chatId, task) {
-  await sendMessage(chatId, '⚙️ Понял! Читаю код и готовлю изменения...')
+async function handleCodeTask(chatId, task, ctx = {}) {
+  await sendMessage(chatId, '⚙️ Понял! Читаю код и готовлю изменения...', ctx)
 
   let files
   try {
     files = await readProjectFiles(task)
   } catch (e) {
-    await sendMessage(chatId, '❌ Не удалось прочитать файлы с GitHub.')
+    await sendMessage(chatId, '❌ Не удалось прочитать файлы с GitHub.', ctx)
     return
   }
 
-  await sendMessage(chatId, '🧠 Генерирую изменения...')
+  await sendMessage(chatId, '🧠 Генерирую изменения...', ctx)
 
   let result
   try {
     result = await generateCodeChanges(task, files)
   } catch (e) {
     console.error('Code gen error:', e)
-    await sendMessage(chatId, '❌ Ошибка при генерации кода. Попробуй ещё раз.')
+    await sendMessage(chatId, '❌ Ошибка при генерации кода. Попробуй ещё раз.', ctx)
     return
   }
 
-  // Commit each changed file to GitHub
   let committed = 0
   for (const file of result.files ?? []) {
     const existing = await ghGetFile(file.path)
@@ -284,14 +288,15 @@ async function handleCodeTask(chatId, task) {
   }
 
   if (committed === 0) {
-    await sendMessage(chatId, '❌ Не удалось применить изменения в GitHub.')
+    await sendMessage(chatId, '❌ Не удалось применить изменения в GitHub.', ctx)
     return
   }
 
   await sendMessage(chatId,
     `✅ Готово! ${result.summary}\n\n` +
     `📝 Изменено файлов: ${committed}\n` +
-    `🚀 Деплой запущен — через ~30 сек на сайте:\n${APP_URL}`
+    `🚀 Деплой запущен — через ~30 сек на сайте:\n${APP_URL}`,
+    ctx
   )
 }
 
@@ -306,6 +311,12 @@ export default async function handler(req, res) {
     const { message } = req.body ?? {}
     const chatId = message?.chat?.id
     if (!chatId) return res.status(200).json({ ok: true })
+
+    // Thread context — keeps all replies inside the same thread
+    const ctx = {
+      threadId:  message.message_thread_id ?? null,
+      replyToId: message.message_id ?? null,
+    }
 
     const text  = message.text?.trim()
     const voice = message.voice
@@ -322,12 +333,12 @@ export default async function handler(req, res) {
         '• "Сделай фон главного экрана тёмно-синим"\n' +
         '• "Добавь кнопку Настройки в профиль"\n' +
         '• "Измени приветствие на главном экране"\n\n' +
-        `🔗 ${APP_URL}`
+        `🔗 ${APP_URL}`, ctx
       )
       return res.status(200).json({ ok: true })
     }
 
-    sendTyping(chatId)
+    sendTyping(chatId, ctx)
 
     // Transcribe voice
     let userText = text
@@ -335,13 +346,13 @@ export default async function handler(req, res) {
       try {
         userText = await transcribeVoice(voice.file_id)
         if (!userText) {
-          await sendMessage(chatId, '🎙 Ничего не расслышал, попробуй ещё раз.')
+          await sendMessage(chatId, '🎙 Ничего не расслышал, попробуй ещё раз.', ctx)
           return res.status(200).json({ ok: true })
         }
-        await sendMessage(chatId, `🎙 ${userText}`)
-        sendTyping(chatId)
+        await sendMessage(chatId, `🎙 ${userText}`, ctx)
+        sendTyping(chatId, ctx)
       } catch (e) {
-        await sendMessage(chatId, '🎙 Не удалось расшифровать голосовое.')
+        await sendMessage(chatId, '🎙 Не удалось расшифровать голосовое.', ctx)
         return res.status(200).json({ ok: true })
       }
     }
@@ -350,10 +361,10 @@ export default async function handler(req, res) {
 
     // Route: code task or chat
     if (isCodeTask(userText)) {
-      await handleCodeTask(chatId, userText)
+      await handleCodeTask(chatId, userText, ctx)
     } else {
       const reply = await chatReply(chatId, userText)
-      await sendMessage(chatId, reply)
+      await sendMessage(chatId, reply, ctx)
     }
 
     return res.status(200).json({ ok: true })
