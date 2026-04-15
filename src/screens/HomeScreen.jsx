@@ -8,7 +8,7 @@ import { IconPlus, IconArrow, IconBitcoin, IconSliders, IconBell } from '../comp
 import { formatUsdParts } from '../data/mockData.js'
 
 const QUICK_ACTIONS = [
-  { id: 'topup',    label: 'Пополнить', Icon: IconPlus },
+  { id: 'topup',    label: 'Пополнить!', Icon: IconPlus },
   { id: 'transfer', label: 'Перевести', Icon: IconArrow },
   { id: 'crypto',   label: 'Крипто',    Icon: IconBitcoin },
   { id: 'limits',   label: 'Лимиты',    Icon: IconSliders },
