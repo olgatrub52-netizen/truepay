@@ -151,13 +151,12 @@ export default async function handler(req, res) {
 
   try {
     // ── Диалог в Telegram ───────────────────────────────────────────────────
-    await say(`Майя: "${label}"`)
-    console.log('TG say done | CHAT_ID:', CHAT_ID, '| TOKEN:', process.env.TELEGRAM_TOKEN?.slice(0,10))
-    await say('Читаю код...')
+    await say(`🤖 Майя: "${label}"`)
+    await say('⚙️ Читаю код...')
 
     const files = await readFiles(task)
 
-    await say(`Генерирую изменения: ${files.map(f => f.path.split('/').pop()).join(', ')}`)
+    await say(`🧠 Генерирую изменения: ${files.map(f => f.path.split('/').pop()).join(', ')}...`)
 
     const result = await generateChanges(task, files)
 
@@ -172,7 +171,7 @@ export default async function handler(req, res) {
     if (committed === 0) throw new Error('Не удалось применить изменения в GitHub')
 
     // ── Отчёт в Telegram ────────────────────────────────────────────────────
-    await say(`Готово! ${result.summary}. Файлов: ${committed}. Деплой: ${APP_URL}`)
+    await say(`✅ Майя выполнила: ${result.summary}\n\n📝 Файлов изменено: ${committed}\n🚀 Деплой: ${APP_URL}`)
 
     const payload = { ok: true, summary: result.summary, filesChanged: committed, deployUrl: APP_URL }
 
