@@ -503,6 +503,72 @@ async function handleCodeTask(chatId, task, ctx = {}) {
   )
 }
 
+// ─── Maya directive approval / rejection ─────────────────────────────────────
+
+async function readPending(id) {
+  const path = `directives/pending_${id}.json`
+  const res  = await fetch(`${GH_API}/repos/${GH_OWNER}/${GH_REPO}/contents/${path}`, {
+    headers: {
+      Authorization: `Bearer ${GH_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+    },
+  })
+  if (!res.ok) return null
+  const data = await res.json()
+  return {
+    directive: JSON.parse(Buffer.from(data.content, 'base64').toString('utf8')),
+    sha: data.sha,
+  }
+}
+
+async function deletePending(id, sha) {
+  const path = `directives/pending_${id}.json`
+  await fetch(`${GH_API}/repos/${GH_OWNER}/${GH_REPO}/contents/${path}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${GH_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ message: `maya: remove directive ${id}`, sha, branch: 'main' }),
+  })
+}
+
+async function editMessageText(chatId, messageId, text) {
+  await fetch(`${TELEGRAM_API}/editMessageText`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, reply_markup: { inline_keyboard: [] } }),
+  })
+}
+
+async function handleMayaApproval(chatId, id, messageId) {
+  // Update the approval message immediately
+  await editMessageText(chatId, messageId, `⏳ Выполняю директиву Майи...`)
+
+  const pending = await readPending(id)
+  if (!pending) {
+    await sendMessage(chatId, `❌ Директива ${id} не найдена или уже выполнена.`)
+    return
+  }
+
+  const { directive, sha } = pending
+  await deletePending(id, sha)
+
+  // Execute as a code task
+  await handleCodeTask(chatId, directive.task, {})
+
+  // Update the original message to show it's done
+  await editMessageText(chatId, messageId, `✅ Директива Майи выполнена:\n"${directive.description}"`)
+}
+
+async function rejectMayaDirective(chatId, id, messageId) {
+  const pending = await readPending(id)
+  if (pending) await deletePending(id, pending.sha)
+  await editMessageText(chatId, messageId, `❌ Директива отклонена.`)
+  await sendMessage(chatId, '👍 Ок, изменение отменено.')
+}
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -511,7 +577,33 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { message } = req.body ?? {}
+    const body = req.body ?? {}
+
+    // ── Inline keyboard button pressed (approve/reject Maya directive) ──────
+    if (body.callback_query) {
+      const cq     = body.callback_query
+      const chatId = cq.message?.chat?.id
+      const data   = cq.data ?? ''
+
+      // Always answer the callback to remove the loading spinner
+      fetch(`${TELEGRAM_API}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: cq.id }),
+      })
+
+      if (data.startsWith('approve_')) {
+        const id = data.replace('approve_', '')
+        await handleMayaApproval(chatId, id, cq.message?.message_id)
+      } else if (data.startsWith('reject_')) {
+        const id = data.replace('reject_', '')
+        await rejectMayaDirective(chatId, id, cq.message?.message_id)
+      }
+
+      return res.status(200).json({ ok: true })
+    }
+
+    const { message } = body
     const chatId = message?.chat?.id
     if (!chatId) return res.status(200).json({ ok: true })
 
