@@ -19,7 +19,7 @@ const GH_API      = 'https://api.github.com'
 const GH_OWNER    = process.env.GITHUB_OWNER
 const GH_REPO     = process.env.GITHUB_REPO
 const GH_TOKEN    = process.env.GITHUB_TOKEN
-const CHAT_ID     = process.env.SUPPORT_CHAT_ID ?? '805962344'
+const CHAT_ID     = process.env.SUPPORT_CHAT_ID ?? '1587586437'
 const APP_URL     = 'https://truepay-kappa.vercel.app'
 
 // ─── Telegram ─────────────────────────────────────────────────────────────────
