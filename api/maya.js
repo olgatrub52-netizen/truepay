@@ -140,12 +140,17 @@ export default async function handler(req, res) {
   }
 
   // Auth
-  if (req.headers['x-maya-secret'] !== process.env.MAYA_SECRET) {
+  const secret = req.headers['x-maya-secret']
+  if (secret !== process.env.MAYA_SECRET) {
+    await say(`⚠️ Maya API: неверный секрет. Получено: "${secret?.slice(0,20)}"`)
     return res.status(401).json({ ok: false, error: 'Invalid secret' })
   }
 
   const { task, description, callbackUrl } = req.body ?? {}
-  if (!task) return res.status(400).json({ ok: false, error: 'task is required' })
+  if (!task) {
+    await say(`⚠️ Maya API: нет поля task. Body: ${JSON.stringify(req.body ?? {}).slice(0, 200)}`)
+    return res.status(400).json({ ok: false, error: 'task is required' })
+  }
 
   const label = description ?? task
 
