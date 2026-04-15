@@ -52,7 +52,7 @@ export default function HomeScreen({ user, balance, transactions, card, spending
       <header className="relative z-10 flex items-start justify-between gap-4 px-5"
         style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top))' }}>
         <div>
-          <p className="text-[12px] font-medium text-slate-500">Привет, {user?.name?.split(' ')[0] ?? 'пользователь'} 👋</p>
+          <p className="text-[12px] font-medium text-slate-500">{user?.name?.split(' ')[0] ?? 'пользователь'} 👋</p>
           <p className="mt-1 text-[13px] text-slate-600">Доступный баланс</p>
           <div className="mt-1 flex items-baseline gap-1">
             <span className="text-[2.25rem] font-semibold tracking-tight text-white tabular-nums">
