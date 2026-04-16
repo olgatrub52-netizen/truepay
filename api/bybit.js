@@ -33,7 +33,8 @@ async function bybitGet(path, params, apiKey, apiSecret) {
   const qs  = new URLSearchParams(params).toString()
   const url = `${BASE}${path}?${qs}`
   const r   = await fetch(url, { headers: headers(apiKey, apiSecret, qs) })
-  return r.json()
+  const text = await r.text()
+  try { return JSON.parse(text) } catch { throw new Error(`Bybit GET ${path} (${r.status}): ${text.slice(0, 200)}`) }
 }
 
 async function bybitPost(path, body, apiKey, apiSecret) {
@@ -43,7 +44,8 @@ async function bybitPost(path, body, apiKey, apiSecret) {
     headers: headers(apiKey, apiSecret, bodyStr),
     body:    bodyStr,
   })
-  return r.json()
+  const text = await r.text()
+  try { return JSON.parse(text) } catch { throw new Error(`Bybit POST ${path} (${r.status}): ${text.slice(0, 200)}`) }
 }
 
 export default async function handler(req, res) {
