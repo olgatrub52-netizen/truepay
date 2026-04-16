@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { PreviewCard } from '../components/card/GlassCard.jsx'
 import TransactionItem from '../components/transaction/TransactionItem.jsx'
 import TxDetailSheet from '../components/transaction/TxDetailSheet.jsx'
@@ -6,6 +6,7 @@ import SpendingChart from '../components/ui/SpendingChart.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import { IconPlus, IconArrow, IconBitcoin, IconSliders, IconBell, IconBankOut } from '../components/icons/index.jsx'
 import { formatUsdParts } from '../data/mockData.js'
+import { getPrice, getBalance } from '../services/bybitService.js'
 
 const QUICK_ACTIONS = [
   { id: 'topup',    label: 'Пополнить', Icon: IconPlus },
@@ -26,6 +27,20 @@ export default function HomeScreen({ user, balance, transactions, card, spending
     () => formatUsdParts(spendingData?.reduce((s, d) => s + d.amount, 0) ?? 0),
     [spendingData]
   )
+
+  // Live Bybit data
+  const [btcPrice,    setBtcPrice]    = useState(null)
+  const [btcChange,   setBtcChange]   = useState(null)
+  const [usdtBalance, setUsdtBalance] = useState(null)
+
+  useEffect(() => {
+    getPrice('BTCUSDT').then(d => { if (d.ok) { setBtcPrice(d.price); setBtcChange(d.change) } }).catch(() => {})
+    getBalance().then(d => { if (d.ok) setUsdtBalance(d.usdt.available) }).catch(() => {})
+    const id = setInterval(() => {
+      getPrice('BTCUSDT').then(d => { if (d.ok) { setBtcPrice(d.price); setBtcChange(d.change) } }).catch(() => {})
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   const handleNfc = (toast) => {
     setNfcFlash(true)
@@ -108,6 +123,46 @@ export default function HomeScreen({ user, balance, transactions, card, spending
             </span>
           </div>
           <SpendingChart data={spendingData} />
+        </div>
+
+        {/* Bybit crypto ticker */}
+        <div className="mx-5 mt-4 flex gap-3">
+          {/* BTC price */}
+          <div className="flex flex-1 items-center gap-3 rounded-2xl border border-white/[0.06] bg-surface-raised/30 px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
+              <IconBitcoin className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] text-slate-500">Bitcoin</p>
+              {btcPrice ? (
+                <p className="text-[15px] font-semibold tabular-nums text-white">
+                  ${btcPrice.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </p>
+              ) : (
+                <div className="mt-0.5 h-4 w-20 animate-pulse rounded bg-surface-raised" />
+              )}
+            </div>
+            {btcChange !== null && (
+              <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums ${btcChange >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                {btcChange >= 0 ? '+' : ''}{btcChange.toFixed(2)}%
+              </span>
+            )}
+          </div>
+
+          {/* USDT balance */}
+          <div className="flex flex-1 items-center gap-3 rounded-2xl border border-white/[0.06] bg-surface-raised/30 px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-500/15 text-teal-400 text-[13px] font-bold">₮</span>
+            <div className="min-w-0">
+              <p className="text-[11px] text-slate-500">USDT · Bybit</p>
+              {usdtBalance !== null ? (
+                <p className="text-[15px] font-semibold tabular-nums text-white">
+                  {usdtBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                </p>
+              ) : (
+                <div className="mt-0.5 h-4 w-16 animate-pulse rounded bg-surface-raised" />
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Recent transactions */}
