@@ -73,7 +73,16 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
 
   const numAmount  = Number(amount)
   const canAmount  = numAmount >= 100
-  const canDetails = (dest?.editableFields ?? []).every(f => form[f]?.trim())
+
+  function validateAccount(val) {
+    return /^\d{20}$|^\d{22}$/.test(val?.trim())
+  }
+
+  const accountError = form.recipientAccount && !validateAccount(form.recipientAccount)
+    ? 'Номер счёта должен содержать ровно 20 или 22 цифры'
+    : ''
+
+  const canDetails = (dest?.editableFields ?? []).every(f => form[f]?.trim()) && !accountError
 
   function selectDest(d) {
     setDest(d)
@@ -214,10 +223,10 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
       {/* ── Step 2: Details ──────────────────────────────────────────────────── */}
       {step === 2 && (
         <div className="flex flex-1 flex-col">
-          {dest?.id === 'bakai' && (
+            {dest?.id === 'bakai' && (
             <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-950/15 p-3">
               <p className="text-[12px] font-medium text-emerald-400 mb-1">🇰🇬 Бакай Банк · Реквизиты</p>
-              <p className="text-[11px] text-ink/50">БИК корр. банка и счёт заполнены автоматически. Введите только своё имя и номер счёта.</p>
+              <p className="text-[11px] text-ink/50">Введите своё имя и номер счёта в Бакай Банке (20 цифр). БИК и корр. счёт уже заполнены.</p>
             </div>
           )}
 
@@ -232,12 +241,21 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
                   onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                   placeholder={placeholder}
                   readOnly={!isEditable}
+                  inputMode={key === 'recipientAccount' ? 'numeric' : 'text'}
                   className={`w-full rounded-xl px-4 py-3 text-[13px] outline-none ${
                     isEditable
-                      ? 'bg-white/[0.06] text-ink focus:ring-1 focus:ring-accent/40'
+                      ? key === 'recipientAccount' && accountError
+                        ? 'bg-red-500/10 text-ink ring-1 ring-red-500/40'
+                        : 'bg-white/[0.06] text-ink focus:ring-1 focus:ring-accent/40'
                       : 'bg-white/[0.02] text-ink/40 cursor-default'
                   }`}
                 />
+                {key === 'recipientAccount' && accountError && (
+                  <p className="mt-1 text-[11px] text-red-400">{accountError}</p>
+                )}
+                {key === 'recipientAccount' && !accountError && form[key]?.length > 0 && (
+                  <p className="mt-1 text-[11px] text-emerald-400">✓ {form[key].length} цифр</p>
+                )}
               </div>
             )
           })}
