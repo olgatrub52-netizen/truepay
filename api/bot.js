@@ -382,8 +382,8 @@ async function generateCodeChanges(task, files) {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 8096,
+      model: 'claude-haiku-4-5',
+      max_tokens: 4096,
       system: CODE_SYSTEM,
       messages: [{
         role: 'user',
@@ -581,9 +581,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ status: 'TruePay Autonomous Bot 🤖', app: APP_URL })
   }
 
-  // Return 200 to Telegram IMMEDIATELY so it never retries
-  res.status(200).json({ ok: true })
-
   try {
     const body = req.body ?? {}
 
@@ -607,17 +604,17 @@ export default async function handler(req, res) {
         await rejectMayaDirective(chatId, id, cq.message?.message_id)
       }
 
-      return
+      return res.status(200).json({ ok: true })
     }
 
     const { message } = body
     const chatId = message?.chat?.id
-    if (!chatId) return
+    if (!chatId) return res.status(200).json({ ok: true })
 
     // Deduplicate — ignore if we already processed this message_id
     const msgId = message.message_id
     if (msgId) {
-      if (seenMsgIds.has(msgId)) return
+      if (seenMsgIds.has(msgId)) return res.status(200).json({ ok: true })
       seenMsgIds.add(msgId)
     }
 
@@ -666,7 +663,7 @@ export default async function handler(req, res) {
       }
     }
 
-    if (!userText) return
+    if (!userText) return res.status(200).json({ ok: true })
 
     // Route: code task or chat
     if (isCodeTask(userText)) {
@@ -675,7 +672,10 @@ export default async function handler(req, res) {
       const reply = await chatReply(chatId, userText)
       await sendMessage(chatId, reply, ctx)
     }
+
+    return res.status(200).json({ ok: true })
   } catch (err) {
     console.error('Handler error:', err)
+    return res.status(200).json({ ok: true })
   }
 }
