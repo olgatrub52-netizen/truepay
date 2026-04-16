@@ -90,7 +90,11 @@ export default function HomeScreen({ user, balance, transactions, card, spending
         <div className="mt-6 grid grid-cols-4 gap-3 px-5">
           {QUICK_ACTIONS.map(({ id, label, Icon }) => (
             <button key={id} type="button" onClick={() => onAction.navigate(id)}
-              className="flex flex-col items-center gap-2.5 rounded-2xl border border-white/[0.06] bg-surface-raised/30 px-2 py-4 transition hover:border-sky-500/20 hover:bg-sky-950/20 active:scale-[0.97]">
+              className={`flex flex-col items-center gap-2.5 rounded-2xl border px-2 py-4 transition active:scale-[0.97] ${
+                id === 'topup'
+                  ? 'bg-red-600 border-red-500/30 hover:border-red-400/40 hover:bg-red-700'
+                  : 'border-white/[0.06] bg-surface-raised/30 hover:border-sky-500/20 hover:bg-sky-950/20'
+              }`}>
               <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.06] bg-sky-950/40 text-white">
                 <Icon className="h-5 w-5" />
               </span>
