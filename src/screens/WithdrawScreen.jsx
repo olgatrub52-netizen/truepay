@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const PRESET_AMOUNTS = [5000, 10000, 25000, 50000]
 
@@ -70,6 +70,19 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult]   = useState(null)
   const [error, setError]     = useState('')
+  const [rate, setRate]       = useState(null)
+  const [rateLoading, setRateLoading] = useState(false)
+
+  // Загружаем курс когда выбран Бакай Банк
+  useEffect(() => {
+    if (dest?.id !== 'bakai') return
+    setRateLoading(true)
+    fetch('/api/rates?from=RUB&to=USD')
+      .then(r => r.json())
+      .then(d => { if (d.ok) setRate(d) })
+      .catch(() => {})
+      .finally(() => setRateLoading(false))
+  }, [dest])
 
   const numAmount  = Number(amount)
   const canAmount  = numAmount >= 100
@@ -202,9 +215,28 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
             ))}
           </div>
 
-          {dest?.hint && (
-            <div className="mb-4 rounded-2xl border border-accent/20 bg-accent/5 p-3">
-              <p className="text-[12px] text-accent/80">{dest.hint}</p>
+          {/* Конвертация для Бакай Банка */}
+          {dest?.id === 'bakai' && (
+            <div className="mb-4 rounded-2xl bg-white/[0.04] border border-white/[0.06] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[12px] uppercase tracking-wider text-ink/40">Получишь в USD</p>
+                {rateLoading
+                  ? <span className="text-[11px] text-ink/30">Загружаю курс...</span>
+                  : rate && <span className="text-[11px] text-ink/40">{rate.rateLabel}{rate.fallback ? ' *' : ''}</span>
+                }
+              </div>
+              {rate && numAmount >= 100 ? (
+                <>
+                  <p className="text-[32px] font-bold text-emerald-400">
+                    ≈ ${((numAmount * rate.rate) * 0.98).toFixed(2)}
+                  </p>
+                  <p className="mt-1 text-[12px] text-ink/40">
+                    {numAmount.toLocaleString()} ₽ × {rate.rate.toFixed(4)} − 2% комиссия Бакай Банка
+                  </p>
+                </>
+              ) : (
+                <p className="text-[28px] font-bold text-ink/20">≈ $—</p>
+              )}
             </div>
           )}
 
@@ -327,10 +359,49 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
               <p className="mb-1 text-[15px] text-ink/60">
                 {numAmount.toLocaleString()} ₽ → {dest?.flag} {dest?.label}
               </p>
-              {dest?.id === 'bakai' && (
-                <p className="mb-4 text-[12px] text-emerald-400">Конвертация в USD произойдёт в Бакай Банке</p>
-              )}
               <p className="mb-6 text-[11px] text-ink/30">ID: {result.paymentId}</p>
+
+              {/* Бакай Банк — симуляция получения */}
+              {dest?.id === 'bakai' && (
+                <div className="w-full mb-4 rounded-2xl overflow-hidden">
+                  {/* Заголовок */}
+                  <div className="bg-emerald-500/15 border border-emerald-500/20 px-4 py-3 flex items-center gap-2">
+                    <span className="text-lg">🇰🇬</span>
+                    <p className="text-[13px] font-semibold text-emerald-400">Бакай Банк · Симуляция</p>
+                  </div>
+                  {/* Тело */}
+                  <div className="bg-white/[0.03] border border-t-0 border-white/[0.06] p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[12px] text-ink/50">Получено</span>
+                      <span className="text-[15px] font-semibold text-ink">{numAmount.toLocaleString()} ₽</span>
+                    </div>
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[12px] text-ink/50">Курс дня</span>
+                      <span className="text-[13px] text-ink/70">
+                        {rate ? `1 ₽ = $${rate.rate.toFixed(4)}` : 'загружается...'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[12px] text-ink/50">Комиссия банка</span>
+                      <span className="text-[13px] text-ink/70">2%</span>
+                    </div>
+                    <div className="h-px bg-white/[0.06] my-3" />
+                    <div className="flex justify-between items-center">
+                      <span className="text-[13px] font-medium text-ink">Зачислено в USD</span>
+                      <span className="text-[22px] font-bold text-emerald-400">
+                        {rate
+                          ? `$${((numAmount * rate.rate) * 0.98).toFixed(2)}`
+                          : '...'
+                        }
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[10px] text-ink/30 text-center">
+                      Симуляция · В реальности конвертация происходит в Бакай Банке по курсу дня
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="w-full rounded-2xl bg-white/[0.04] p-4 text-left">
                 <p className="mb-2 text-[11px] uppercase tracking-wider text-ink/40">Ответ T-Bank Sandbox</p>
                 <pre className="overflow-x-auto text-[11px] text-ink/50 whitespace-pre-wrap">
