@@ -26,6 +26,8 @@ function headers(apiKey, apiSecret, body = '') {
     'X-BAPI-RECV-WINDOW': recvWindow,
     'X-BAPI-SIGN':        sign(apiKey, apiSecret, timestamp, recvWindow, body),
     'Content-Type':       'application/json',
+    'User-Agent':         'Mozilla/5.0 (compatible; TruePay/1.0)',
+    'Referer':            'https://truepay-kappa.vercel.app',
   }
 }
 
