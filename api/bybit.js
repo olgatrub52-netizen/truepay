@@ -10,7 +10,7 @@
 
 import crypto from 'crypto'
 
-const BASE = 'https://api.bybit.com'
+const BASE = 'https://api.bytick.com'
 
 function sign(apiKey, apiSecret, timestamp, recvWindow, body) {
   const str = `${timestamp}${apiKey}${recvWindow}${body}`
