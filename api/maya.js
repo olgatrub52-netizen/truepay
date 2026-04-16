@@ -146,7 +146,26 @@ export default async function handler(req, res) {
     return res.status(401).json({ ok: false, error: 'Invalid secret' })
   }
 
-  const { task, description, callbackUrl } = req.body ?? {}
+  let { task, description, callbackUrl } = req.body ?? {}
+
+  // Если всё тело пришло как строка (например из Shortcut) — попробуем распарсить JSON
+  if (!task && typeof req.body === 'string') {
+    try {
+      const parsed = JSON.parse(req.body)
+      task = parsed.task
+      description = parsed.description
+      callbackUrl = parsed.callbackUrl
+    } catch {}
+  }
+
+  // Если task сам является JSON-строкой — распарсим
+  if (task && task.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(task)
+      if (parsed.task) { description = description ?? parsed.description; task = parsed.task }
+    } catch {}
+  }
+
   if (!task) {
     await say(`⚠️ Maya API: нет поля task. Body: ${JSON.stringify(req.body ?? {}).slice(0, 200)}`)
     return res.status(400).json({ ok: false, error: 'task is required' })
