@@ -96,20 +96,19 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
   const [priceLoading, setPriceLoading] = useState(false)
 
   useEffect(() => {
-    if (dest?.id === 'bakai') {
+    if (dest?.id === 'bakai' || dest?.id === 'bybit') {
       setRubRateLoading(true)
       fetch('/api/rates?from=RUB&to=USD')
         .then(r => r.json())
-        .then(d => { if (d.ok) setRubRate(d) })
+        .then(d => {
+          if (d.ok) {
+            setRubRate(d)
+            // P2P: 1 USDT ≈ 1 USD, P2P наценка ~1%
+            if (dest?.id === 'bybit') setUsdtPrice(d.inverse * 1.01)
+          }
+        })
         .catch(() => {})
         .finally(() => setRubRateLoading(false))
-    }
-    if (dest?.id === 'bybit') {
-      setPriceLoading(true)
-      getPrice('USDTRUB')
-        .then(d => { if (d.ok && d.price > 0) setUsdtPrice(d.price) })
-        .catch(() => {})
-        .finally(() => setPriceLoading(false))
     }
   }, [dest])
 
@@ -278,28 +277,28 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
             ))}
           </div>
 
-          {/* Bybit: живая конвертация */}
+          {/* Bybit: P2P конвертация */}
           {dest?.id === 'bybit' && (
             <div className="mb-4 rounded-2xl border border-sky-500/20 bg-sky-950/15 p-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[12px] uppercase tracking-wider text-ink/40">Получишь USDT</p>
-                {priceLoading
+                {rubRateLoading
                   ? <span className="text-[11px] text-ink/30">Загружаю курс...</span>
                   : usdtPrice
-                    ? <span className="text-[11px] text-ink/40">1 USDT = {usdtPrice.toLocaleString('ru-RU')} ₽</span>
-                    : <span className="text-[11px] text-amber-400">Нет пары USDT/RUB — используем BTC</span>
+                    ? <span className="text-[11px] text-ink/40">P2P ≈ {usdtPrice.toFixed(2)} ₽/USDT</span>
+                    : null
                 }
               </div>
               {estUsdt ? (
                 <>
                   <p className="text-[32px] font-bold text-sky-400">≈ {estUsdt.toFixed(4)} USDT</p>
                   <p className="mt-1 text-[12px] text-ink/40">
-                    {numAmount.toLocaleString()} ₽ ÷ {usdtPrice?.toLocaleString('ru-RU')} ₽/USDT
+                    {numAmount.toLocaleString()} ₽ ÷ {usdtPrice?.toFixed(2)} ₽/USDT (P2P ~+1%)
                   </p>
                   <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2">
                     <span className="text-teal-400 text-[13px]">≈</span>
                     <span className="text-[12px] text-ink/60">
-                      ${(estUsdt * 1).toFixed(2)} USD после вывода на Бакай Банк
+                      ${estUsdt.toFixed(2)} USD на счёт Бакай Банка
                     </span>
                   </div>
                 </>
@@ -443,7 +442,7 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
           }`}>
             <p className={`text-[12px] ${dest?.id === 'bybit' ? 'text-sky-400' : 'text-amber-400'}`}>
               {dest?.id === 'bybit'
-                ? '⚡ Реальный вызов Bybit API — маркет-ордер на покупку USDT'
+                ? '⚡ Bybit P2P симуляция — курс по живому RUB/USD · реальных списаний нет'
                 : '⚠️ Sandbox — реальные деньги не списываются'}
             </p>
           </div>
@@ -477,7 +476,7 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
               </div>
 
               <h2 className="mb-1 text-[22px] font-bold text-ink">
-                {result.type === 'bybit' ? 'Ордер размещён!' : 'Принято!'}
+                {result.type === 'bybit' ? 'P2P заявка создана!' : 'Принято!'}
               </h2>
 
               {result.type === 'bybit' ? (
@@ -486,21 +485,23 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
                     {numAmount.toLocaleString()} ₽ → {result.usdtAmount} USDT
                   </p>
                   <p className="mb-6 text-[11px] text-ink/30">
-                    Order ID: {result.orderId ?? 'pending'} · {result.retMsg || 'OK'}
+                    ID: {result.orderId} · P2P симуляция
                   </p>
 
-                  {/* Bybit → Баки Банк симуляция */}
+                  {/* Bybit P2P → Бакай Банк */}
                   <div className="w-full mb-4 rounded-2xl overflow-hidden text-left">
                     <div className="bg-sky-500/15 border border-sky-500/20 px-4 py-3 flex items-center gap-2">
                       <span className="text-[18px]">₿</span>
-                      <p className="text-[13px] font-semibold text-sky-400">Bybit → Бакай Банк · Симуляция</p>
+                      <p className="text-[13px] font-semibold text-sky-400">Bybit P2P → Бакай Банк</p>
+                      <span className="ml-auto text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded-full">Симуляция</span>
                     </div>
                     <div className="bg-white/[0.03] border border-t-0 border-white/[0.06] p-4 space-y-3">
                       {[
-                        ['Куплено USDT',   `${result.usdtAmount} USDT`],
-                        ['Курс',           `1 USDT = ${result.rubPerUsdt?.toLocaleString('ru-RU')} ₽`],
-                        ['Комиссия Bybit', `~0.1% (≈ ${(result.usdtAmount * 0.001).toFixed(4)} USDT)`],
-                        ['USDT → USD',     `1:1 (стейблкоин)`],
+                        ['Отправлено',      `${numAmount.toLocaleString()} ₽`],
+                        ['P2P курс',        `1 USDT ≈ ${parseFloat(result.rubPerUsdt).toFixed(2)} ₽`],
+                        ['Куплено USDT',    `${result.usdtAmount} USDT`],
+                        ['Комиссия P2P',    '~1% (сверх рыночного курса)'],
+                        ['USDT → USD',      '1:1 (стейблкоин)'],
                       ].map(([k, v]) => (
                         <div key={k} className="flex justify-between">
                           <span className="text-[12px] text-ink/50">{k}</span>
@@ -509,22 +510,21 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
                       ))}
                       <div className="h-px bg-white/[0.06]" />
                       <div className="flex justify-between items-center">
-                        <span className="text-[13px] font-medium text-ink">🇰🇬 Поступит в USD</span>
+                        <span className="text-[13px] font-medium text-ink">🇰🇬 Получишь в USD</span>
                         <span className="text-[22px] font-bold text-sky-400">
-                          ≈ ${(parseFloat(result.usdtAmount) * 0.999).toFixed(2)}
+                          ≈ ${(parseFloat(result.usdtAmount) * 0.998).toFixed(2)}
                         </span>
                       </div>
                       <p className="text-[10px] text-ink/30 text-center">
-                        Симуляция SWIFT-вывода · В продакшне — реальный вывод USDT → USD на карту Бакай Банка
+                        В реальности: Bybit P2P сделка → USDT на кошелёк → SWIFT вывод на Бакай Банк
                       </p>
                     </div>
                   </div>
 
-                  {/* Raw ответ Bybit */}
                   <div className="w-full rounded-2xl bg-white/[0.04] p-4 text-left">
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-ink/40">Ответ Bybit API</p>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-ink/40">Детали транзакции</p>
                     <pre className="overflow-x-auto text-[11px] text-ink/50 whitespace-pre-wrap">
-                      {JSON.stringify({ ok: result.ok, orderId: result.orderId, usdtAmount: result.usdtAmount, rubPerUsdt: result.rubPerUsdt, retMsg: result.retMsg }, null, 2)}
+                      {JSON.stringify({ orderId: result.orderId, amountRub: result.amountRub, usdtBought: result.usdtAmount, p2pRate: result.rubPerUsdt, rateSource: result.rateSource, status: 'COMPLETED' }, null, 2)}
                     </pre>
                   </div>
                 </>

@@ -75,29 +75,39 @@ export async function getPrice(symbol = 'BTCUSDT') {
   }
 }
 
-/** Симуляция покупки USDT за RUB */
+/**
+ * Симуляция покупки USDT за RUB через P2P.
+ * Bybit убрал спот-пару USDTRUB из-за санкций — в реальности это P2P-сделка.
+ * Используем живой курс RUB/USD из нашего /api/rates.
+ */
 export async function buyUSDT(amountRub) {
-  // Получаем цену
-  const tickerData  = await fetch(`${BASE}/v5/market/tickers?category=spot&symbol=USDTRUB`).then(r => r.json())
-  const rubPerUsdt  = parseFloat(tickerData.result?.list?.[0]?.lastPrice ?? 90)
-  const usdtAmount  = (amountRub / rubPerUsdt).toFixed(4)
+  // Получаем живой курс RUB/USD (1 USDT ≈ 1 USD)
+  let rubPerUsdt = 92  // fallback
+  let rateSource = 'fallback'
+  try {
+    const rateData = await fetch('/api/rates?from=RUB&to=USD').then(r => r.json())
+    if (rateData.ok && rateData.inverse > 0) {
+      // inverse = USD/RUB rate, т.е. сколько рублей за 1 USD
+      rubPerUsdt = rateData.inverse
+      rateSource = 'live'
+    }
+  } catch { /* fallback уже задан */ }
 
-  const order = await post('/v5/order/create', {
-    category:  'spot',
-    symbol:    'USDTRUB',
-    side:      'Buy',
-    orderType: 'Market',
-    qty:       usdtAmount,
-  })
+  // P2P наценка ~1% сверх рыночного курса (типичная для Bybit P2P)
+  const p2pRate   = rubPerUsdt * 1.01
+  const usdtAmount = (amountRub / p2pRate).toFixed(4)
+  const orderId   = `P2P-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
 
   return {
-    ok:         order.retCode === 0,
-    orderId:    order.result?.orderId,
+    ok:         true,
+    simulation: true,
+    p2p:        true,
+    orderId,
     usdtAmount,
-    rubPerUsdt,
+    rubPerUsdt: p2pRate,
+    rateSource,
     amountRub,
-    retMsg:     order.retMsg,
-    raw:        order,
+    retMsg:     'P2P order matched (simulation)',
   }
 }
 
