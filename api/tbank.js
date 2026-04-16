@@ -50,8 +50,9 @@ async function getStatement(res, { accountNumber, from, to } = {}) {
     { headers: { Authorization: `Bearer ${TBANK_TOKEN}` } }
   )
 
-  const data = await r.json()
-  return res.status(200).json({ ok: true, sandbox: true, raw: data })
+  const text = await r.text()
+  const data = text ? JSON.parse(text) : {}
+  return res.status(200).json({ ok: r.ok, sandbox: true, httpStatus: r.status, raw: data })
 }
 
 // ─── Перевод на счёт физлица ──────────────────────────────────────────────────
@@ -96,8 +97,11 @@ async function makeTransfer(res, {
     body: JSON.stringify(body),
   })
 
-  const data = await r.json()
-  return res.status(200).json({ ok: r.ok, sandbox: true, paymentId, raw: data })
+  // Sandbox returns 201 with empty body — handle gracefully
+  const text = await r.text()
+  const data = text ? JSON.parse(text) : { status: 'QUEUED' }
+  const ok   = r.status === 201 || r.ok
+  return res.status(200).json({ ok, sandbox: true, paymentId, httpStatus: r.status, raw: data })
 }
 
 // ─── Статус платежа ───────────────────────────────────────────────────────────
@@ -109,6 +113,7 @@ async function getStatus(res, { paymentId }) {
     headers: { Authorization: `Bearer ${TBANK_TOKEN}` },
   })
 
-  const data = await r.json()
-  return res.status(200).json({ ok: true, sandbox: true, raw: data })
+  const text = await r.text()
+  const data = text ? JSON.parse(text) : {}
+  return res.status(200).json({ ok: r.ok, sandbox: true, httpStatus: r.status, raw: data })
 }
