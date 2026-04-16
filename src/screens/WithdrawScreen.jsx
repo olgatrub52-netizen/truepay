@@ -5,13 +5,23 @@ const PRESET_AMOUNTS = [5000, 10000, 25000, 50000]
 
 const DESTINATIONS = [
   {
-    id: 'bybit',
-    label: 'Bybit · Крипто',
-    flag: '₿',
-    description: 'RUB → USDT → USD · Реальный Bybit API',
-    commission: '~0.1%',
-    hint: 'Рубли конвертируются в USDT на Bybit по рыночному курсу. Далее USDT выводится в USD на карту Бакай Банка.',
+    id: 'moex',
+    label: 'MOEX · Валютная биржа',
+    flag: '🏛',
+    description: 'RUB → USD · Московская биржа · Живой курс',
+    commission: '~0.7%',
+    hint: 'Покупка USD по биржевому курсу MOEX (секция CETS). Официальный курс, минимальная комиссия.',
     badge: 'LIVE',
+    badgeColor: 'bg-emerald-500/20 text-emerald-400',
+  },
+  {
+    id: 'bybit',
+    label: 'Bybit · Крипто P2P',
+    flag: '₿',
+    description: 'RUB → USDT → USD · Bybit P2P',
+    commission: '~1%',
+    hint: 'Рубли конвертируются в USDT через P2P. Далее USDT выводится в USD на Бакай Банк.',
+    badge: 'P2P',
     badgeColor: 'bg-sky-500/20 text-sky-400',
   },
   {
@@ -87,13 +97,17 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
   const [result, setResult]       = useState(null)
   const [error, setError]         = useState('')
 
-  // RUB/USD from open.er-api (for Bakai)
-  const [rubRate, setRubRate]           = useState(null)
+  // RUB/USD from open.er-api (for Bakai / Bybit)
+  const [rubRate, setRubRate]               = useState(null)
   const [rubRateLoading, setRubRateLoading] = useState(false)
 
   // Bybit live price USDT/RUB
   const [usdtPrice, setUsdtPrice]   = useState(null)
   const [priceLoading, setPriceLoading] = useState(false)
+
+  // MOEX live rate
+  const [moexRate, setMoexRate]           = useState(null)
+  const [moexRateLoading, setMoexRateLoading] = useState(false)
 
   useEffect(() => {
     if (dest?.id === 'bakai' || dest?.id === 'bybit') {
@@ -103,12 +117,23 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
         .then(d => {
           if (d.ok) {
             setRubRate(d)
-            // P2P: 1 USDT ≈ 1 USD, P2P наценка ~1%
             if (dest?.id === 'bybit') setUsdtPrice(d.inverse * 1.01)
           }
         })
         .catch(() => {})
         .finally(() => setRubRateLoading(false))
+    }
+    if (dest?.id === 'moex') {
+      setMoexRateLoading(true)
+      fetch('/api/exchange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rate' }),
+      })
+        .then(r => r.json())
+        .then(d => { if (d.ok) setMoexRate(d) })
+        .catch(() => {})
+        .finally(() => setMoexRateLoading(false))
     }
   }, [dest])
 
@@ -118,6 +143,11 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
   // Estimated USDT for Bybit route
   const estUsdt = usdtPrice && numAmount >= 100
     ? (numAmount / usdtPrice)
+    : null
+
+  // Estimated USD for MOEX route
+  const estUsdMoex = moexRate && numAmount >= 100
+    ? numAmount / moexRate.buyRate
     : null
 
   function validateAccount(val) {
@@ -134,10 +164,10 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
     setStep(1)
   }
 
-  // For bybit: skip details step
+  // MOEX and Bybit skip the bank details step
   function goFromAmount() {
     if (!canAmount) return
-    if (dest?.id === 'bybit') setStep(3)
+    if (dest?.id === 'bybit' || dest?.id === 'moex') setStep(3)
     else setStep(2)
   }
 
@@ -145,8 +175,19 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
     setLoading(true)
     setError('')
     try {
-      if (dest?.id === 'bybit') {
-        // Real Bybit API call: buy USDT for RUB
+      if (dest?.id === 'moex') {
+        // MOEX currency exchange
+        const res  = await fetch('/api/exchange', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ action: 'convert', amountRub: numAmount }),
+        })
+        const data = await res.json()
+        setResult({ ...data, type: 'moex' })
+        setStep(4)
+        if (data.ok) onSuccess?.({ amount: numAmount, orderId: data.orderId })
+      } else if (dest?.id === 'bybit') {
+        // Bybit P2P simulation
         const data = await buyUSDT(numAmount)
         setResult({ ...data, type: 'bybit' })
         setStep(4)
@@ -170,14 +211,14 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
     }
   }
 
-  const stepLabels = dest?.id === 'bybit'
+  const stepLabels = (dest?.id === 'bybit' || dest?.id === 'moex')
     ? ['Куда', 'Сумма', null, 'Проверка', 'Готово']
     : ['Куда', 'Сумма', 'Реквизиты', 'Проверка', 'Готово']
 
   const visibleSteps = stepLabels.filter(Boolean)
 
   function stepBack() {
-    if (step === 3 && dest?.id === 'bybit') setStep(1)
+    if (step === 3 && (dest?.id === 'bybit' || dest?.id === 'moex')) setStep(1)
     else if (step > 0) setStep(s => s - 1)
     else onBack()
   }
@@ -276,6 +317,49 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
               </button>
             ))}
           </div>
+
+          {/* MOEX: живой биржевой курс */}
+          {dest?.id === 'moex' && (
+            <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-950/15 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[12px] uppercase tracking-wider text-ink/40">Получишь USD</p>
+                {moexRateLoading
+                  ? <span className="text-[11px] text-ink/30">Загружаю курс MOEX...</span>
+                  : moexRate && (
+                    <div className="text-right">
+                      <span className="text-[11px] text-ink/40">
+                        MOEX {moexRate.trading ? '🟢' : '🟡'} {moexRate.rate?.toFixed(2)} ₽/USD
+                      </span>
+                    </div>
+                  )
+                }
+              </div>
+              {moexRate && numAmount >= 100 ? (
+                <>
+                  <p className="text-[32px] font-bold text-emerald-400">
+                    ≈ ${estUsdMoex?.toFixed(2)}
+                  </p>
+                  <p className="mt-1 text-[12px] text-ink/40">
+                    {numAmount.toLocaleString()} ₽ ÷ {moexRate.buyRate?.toFixed(2)} ₽/USD · комиссия {moexRate.spread}
+                  </p>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {[
+                      ['Открытие', moexRate.open?.toFixed(2)],
+                      ['Максимум', moexRate.high?.toFixed(2)],
+                      ['Минимум',  moexRate.low?.toFixed(2)],
+                    ].map(([k, v]) => (
+                      <div key={k} className="rounded-xl bg-white/[0.04] px-2 py-2 text-center">
+                        <p className="text-[10px] text-ink/40">{k}</p>
+                        <p className="text-[12px] font-medium text-ink">{v || '—'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-[28px] font-bold text-ink/20">≈ $—</p>
+              )}
+            </div>
+          )}
 
           {/* Bybit: P2P конвертация */}
           {dest?.id === 'bybit' && (
@@ -398,7 +482,24 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
           <div className="mb-5 rounded-2xl bg-white/[0.04] p-5">
             <p className="mb-4 text-[13px] uppercase tracking-wider text-ink/40">Детали операции</p>
 
-            {dest?.id === 'bybit' ? (
+            {dest?.id === 'moex' ? (
+              // MOEX confirmation
+              <div className="space-y-3">
+                {[
+                  ['Маршрут',     '🏛 MOEX · Валютная секция CETS'],
+                  ['Списываем',   `${numAmount.toLocaleString()} ₽`],
+                  ['Биржевой курс', moexRate ? `${moexRate.rate?.toFixed(4)} ₽/USD` : '—'],
+                  ['Курс покупки', moexRate ? `${moexRate.buyRate?.toFixed(4)} ₽/USD` : '—'],
+                  ['Комиссия',    moexRate?.spread ?? '0.7%'],
+                  ['Получаем',    estUsdMoex ? `≈ $${estUsdMoex.toFixed(2)}` : '—'],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between py-2 border-b border-white/[0.04] last:border-0">
+                    <span className="text-[13px] text-ink/50">{k}</span>
+                    <span className="text-[13px] font-medium text-ink">{v}</span>
+                  </div>
+                ))}
+              </div>
+            ) : dest?.id === 'bybit' ? (
               // Bybit confirmation
               <div className="space-y-3">
                 {[
@@ -436,12 +537,19 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
           </div>
 
           <div className={`mb-4 rounded-2xl border p-3 ${
-            dest?.id === 'bybit'
+            dest?.id === 'moex'
+              ? 'border-emerald-500/20 bg-emerald-950/15'
+              : dest?.id === 'bybit'
               ? 'border-sky-500/20 bg-sky-950/15'
               : 'border-amber-500/20 bg-amber-950/15'
           }`}>
-            <p className={`text-[12px] ${dest?.id === 'bybit' ? 'text-sky-400' : 'text-amber-400'}`}>
-              {dest?.id === 'bybit'
+            <p className={`text-[12px] ${
+              dest?.id === 'moex'   ? 'text-emerald-400' :
+              dest?.id === 'bybit'  ? 'text-sky-400'     : 'text-amber-400'
+            }`}>
+              {dest?.id === 'moex'
+                ? `🏛 Симуляция биржевого обмена · MOEX CETS · курс ${moexRate?.rate?.toFixed(2) ?? '...'} ₽/USD`
+                : dest?.id === 'bybit'
                 ? '⚡ Bybit P2P симуляция — курс по живому RUB/USD · реальных списаний нет'
                 : '⚠️ Sandbox — реальные деньги не списываются'}
             </p>
@@ -453,9 +561,14 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
             <button onClick={stepBack} className="flex-1 rounded-2xl bg-white/[0.06] py-4 text-[15px] text-ink/60">← Назад</button>
             <button onClick={handleConfirm} disabled={loading}
               className={`flex-1 rounded-2xl py-4 text-[15px] font-semibold text-white disabled:opacity-50 ${
-                dest?.id === 'bybit' ? 'bg-sky-600' : 'bg-accent'
+                dest?.id === 'moex'  ? 'bg-emerald-700' :
+                dest?.id === 'bybit' ? 'bg-sky-600'     : 'bg-accent'
               }`}>
-              {loading ? '⏳ Выполняю...' : dest?.id === 'bybit' ? '⚡ Купить USDT' : 'Подтвердить'}
+              {loading
+                ? '⏳ Выполняю...'
+                : dest?.id === 'moex'  ? '🏛 Купить USD'
+                : dest?.id === 'bybit' ? '⚡ Купить USDT'
+                : 'Подтвердить'}
             </button>
           </div>
         </div>
@@ -476,10 +589,55 @@ export default function WithdrawScreen({ onBack, balance, onSuccess }) {
               </div>
 
               <h2 className="mb-1 text-[22px] font-bold text-ink">
-                {result.type === 'bybit' ? 'P2P заявка создана!' : 'Принято!'}
+                {result.type === 'moex'  ? 'USD куплены!' :
+                 result.type === 'bybit' ? 'P2P заявка создана!' : 'Принято!'}
               </h2>
 
-              {result.type === 'bybit' ? (
+              {result.type === 'moex' ? (
+                <>
+                  <p className="mb-1 text-[15px] text-ink/60">
+                    {numAmount.toLocaleString()} ₽ → ${result.usdAmount} USD
+                  </p>
+                  <p className="mb-6 text-[11px] text-ink/30">
+                    {result.orderId} · MOEX CETS
+                  </p>
+
+                  <div className="w-full mb-4 rounded-2xl overflow-hidden text-left">
+                    <div className="bg-emerald-500/15 border border-emerald-500/20 px-4 py-3 flex items-center gap-2">
+                      <span className="text-[18px]">🏛</span>
+                      <p className="text-[13px] font-semibold text-emerald-400">Московская биржа · CETS</p>
+                      <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">Симуляция</span>
+                    </div>
+                    <div className="bg-white/[0.03] border border-t-0 border-white/[0.06] p-4 space-y-3">
+                      {[
+                        ['Списано RUB',    `${numAmount.toLocaleString()} ₽`],
+                        ['Биржевой курс',  `${result.moexRate?.toFixed(4)} ₽/USD`],
+                        ['Курс покупки',   `${result.rate?.toFixed(4)} ₽/USD`],
+                        ['Комиссия банка', `${result.spread} (${result.commission?.toLocaleString()} ₽)`],
+                        ['Статус торгов',  result.trading ? '🟢 Биржа открыта' : '🟡 По курсу закрытия'],
+                      ].map(([k, v]) => (
+                        <div key={k} className="flex justify-between">
+                          <span className="text-[12px] text-ink/50">{k}</span>
+                          <span className="text-[12px] font-medium text-ink">{v}</span>
+                        </div>
+                      ))}
+                      <div className="h-px bg-white/[0.06]" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-[13px] font-medium text-ink">Получено USD</span>
+                        <span className="text-[28px] font-bold text-emerald-400">${result.usdAmount}</span>
+                      </div>
+                      <p className="text-[10px] text-ink/30 text-center">{result.message}</p>
+                    </div>
+                  </div>
+
+                  <div className="w-full rounded-2xl bg-white/[0.04] p-4 text-left">
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-ink/40">Детали ордера</p>
+                    <pre className="overflow-x-auto text-[11px] text-ink/50 whitespace-pre-wrap">
+                      {JSON.stringify({ orderId: result.orderId, amountRub: result.amountRub, usdBought: result.usdAmount, moexRate: result.moexRate, buyRate: result.rate, commission: result.commission, status: result.status }, null, 2)}
+                    </pre>
+                  </div>
+                </>
+              ) : result.type === 'bybit' ? (
                 <>
                   <p className="mb-1 text-[15px] text-ink/60">
                     {numAmount.toLocaleString()} ₽ → {result.usdtAmount} USDT
