@@ -4,14 +4,14 @@ import TransactionItem from '../components/transaction/TransactionItem.jsx'
 import TxDetailSheet from '../components/transaction/TxDetailSheet.jsx'
 import SpendingChart from '../components/ui/SpendingChart.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
-import { IconPlus, IconArrow, IconBitcoin, IconSliders, IconBell } from '../components/icons/index.jsx'
+import { IconPlus, IconArrow, IconBitcoin, IconSliders, IconBell, IconBankOut } from '../components/icons/index.jsx'
 import { formatUsdParts } from '../data/mockData.js'
 
 const QUICK_ACTIONS = [
-  { id: 'topup',    label: 'Пополнить!', Icon: IconPlus },
+  { id: 'topup',    label: 'Пополнить', Icon: IconPlus },
   { id: 'transfer', label: 'Перевести', Icon: IconArrow },
-  { id: 'crypto',   label: 'Крипто',    Icon: IconBitcoin },
-  { id: 'limits',   label: 'Лимиты',    Icon: IconSliders },
+  { id: 'withdraw', label: 'Вывод ₽',  Icon: IconBankOut },
+  { id: 'crypto',   label: 'Крипто',   Icon: IconBitcoin },
 ]
 
 export default function HomeScreen({ user, balance, transactions, card, spendingData, onAction, onTabChange }) {

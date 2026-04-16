@@ -18,6 +18,7 @@ import LimitsScreen from './screens/LimitsScreen.jsx'
 import CryptoScreen from './screens/CryptoScreen.jsx'
 import KYCScreen from './screens/KYCScreen.jsx'
 import SupportScreen from './screens/SupportScreen.jsx'
+import WithdrawScreen from './screens/WithdrawScreen.jsx'
 
 /**
  * Tab navigation order — used to compute slide direction.
@@ -206,6 +207,27 @@ export default function App() {
     return (
       <>
         <SupportScreen onBack={() => setModal(null)} user={user} />
+        <Toast message={toast} visible={Boolean(toast)} onDismiss={dismissToast} />
+      </>
+    )
+  }
+  if (modal === 'withdraw') {
+    return (
+      <>
+        <WithdrawScreen
+          onBack={() => setModal(null)}
+          balance={balance}
+          onSuccess={({ amount }) => {
+            setBalance(b => Math.round((b - amount * 0.013) * 100) / 100)
+            setTransactions(prev => [{
+              id: nextTxId(), merchant: 'TBank', title: 'Вывод в T-Bank',
+              subtitle: `${amount.toLocaleString()} ₽ · Sandbox`,
+              amountSigned: -(amount * 0.013),
+              date: new Date(), status: 'completed',
+            }, ...prev])
+            showToast(`Вывод ${amount.toLocaleString()} ₽ принят`)
+          }}
+        />
         <Toast message={toast} visible={Boolean(toast)} onDismiss={dismissToast} />
       </>
     )

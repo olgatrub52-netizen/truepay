@@ -50,6 +50,14 @@ export function IconArrow({ className = 'h-6 w-6' }) {
   )
 }
 
+export function IconBankOut({ className = 'h-6 w-6' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 10l4-4m-4 4 4 4m14-4H3" />
+    </svg>
+  )
+}
+
 export function IconSliders({ className = 'h-6 w-6' }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden>
