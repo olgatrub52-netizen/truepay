@@ -52,7 +52,7 @@ export default function HomeScreen({ user, balance, transactions, card, spending
       <header className="relative z-10 flex items-start justify-between gap-4 px-5"
         style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top))' }}>
         <div>
-          <p className="text-[12px] font-medium text-slate-500">Денис, привет!</p>
+          <p className="text-[12px] font-medium text-slate-500">Здравствуйте, Денис</p>
           <p className="mt-1 text-[13px] text-slate-600">Доступный баланс</p>
           <div className="mt-1 flex items-baseline gap-1">
             <span className="text-[2.25rem] font-semibold tracking-tight text-white tabular-nums">
@@ -92,7 +92,7 @@ export default function HomeScreen({ user, balance, transactions, card, spending
             <button key={id} type="button" onClick={() => onAction.navigate(id)}
               className={`flex flex-col items-center gap-2.5 rounded-2xl border px-2 py-4 transition active:scale-[0.97] ${
                 id === 'topup'
-                  ? 'bg-red-600 border-red-500/30 hover:border-red-400/40 hover:bg-red-700'
+                  ? 'bg-sky-500 border-sky-400/30 hover:border-sky-300/40 hover:bg-sky-600'
                   : 'border-white/[0.06] bg-surface-raised/30 hover:border-sky-500/20 hover:bg-sky-950/20'
               }`}>
               <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.06] bg-sky-950/40 text-white">
