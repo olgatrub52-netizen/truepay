@@ -10,7 +10,7 @@
 
 import crypto from 'crypto'
 
-const TESTNET = 'https://api-testnet.bybit.com'
+const BASE = 'https://api.bybit.com'
 
 function sign(apiKey, apiSecret, timestamp, recvWindow, body) {
   const str = `${timestamp}${apiKey}${recvWindow}${body}`
@@ -31,14 +31,14 @@ function headers(apiKey, apiSecret, body = '') {
 
 async function bybitGet(path, params, apiKey, apiSecret) {
   const qs  = new URLSearchParams(params).toString()
-  const url = `${TESTNET}${path}?${qs}`
+  const url = `${BASE}${path}?${qs}`
   const r   = await fetch(url, { headers: headers(apiKey, apiSecret, qs) })
   return r.json()
 }
 
 async function bybitPost(path, body, apiKey, apiSecret) {
   const bodyStr = JSON.stringify(body)
-  const r = await fetch(`${TESTNET}${path}`, {
+  const r = await fetch(`${BASE}${path}`, {
     method:  'POST',
     headers: headers(apiKey, apiSecret, bodyStr),
     body:    bodyStr,
