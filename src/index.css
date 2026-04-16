@@ -53,6 +53,11 @@
     background-clip: text;
   }
 
+  /* Bright green text */
+  .tp-bright-green {
+    color: #4ade80;
+  }
+
   /* Glass panel */
   .tp-glass {
     background: rgba(13, 20, 28, 0.7);
